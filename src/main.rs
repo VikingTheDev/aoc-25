@@ -78,15 +78,17 @@ fn run_day(day: u8, use_test: bool) -> Option<((String, std::time::Duration), (S
 
 fn time_solution<F>(f: F) -> ((String, std::time::Duration), (String, std::time::Duration))
 where
-    F: FnOnce() -> (String, String),
+    F: Fn() -> (String, String),
 {
-    let start = Instant::now();
-    let (part1, part2) = f();
-    let total_duration = start.elapsed();
+    // Time part 1
+    let start1 = Instant::now();
+    let (part1, _) = f();
+    let part1_time = start1.elapsed();
     
-    // Approximate equal split for timing (you can enhance this later)
-    let part1_time = total_duration / 2;
-    let part2_time = total_duration - part1_time;
+    // Time part 2
+    let start2 = Instant::now();
+    let (_, part2) = f();
+    let part2_time = start2.elapsed();
     
     ((part1, part1_time), (part2, part2_time))
 }
