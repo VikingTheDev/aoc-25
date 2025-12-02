@@ -33,7 +33,7 @@ macro_rules! benchmark {
 }
 
 benchmark!(year2025
-    day01 
+    day01, day02
 );
 
 // Add more years as needed:
@@ -41,5 +41,15 @@ benchmark!(year2025
 //     day01, day02
 // );
 
-criterion_group!(benches, year2025);
+fn custom_criterion() -> Criterion {
+    Criterion::default()
+        .with_output_color(true)
+        .plotting_backend(criterion::PlottingBackend::Plotters)
+}
+
+criterion_group! {
+    name = benches;
+    config = custom_criterion();
+    targets = year2025
+}
 criterion_main!(benches);

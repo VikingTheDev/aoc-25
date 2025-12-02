@@ -12,6 +12,9 @@ struct Solution {
 }
 
 fn main() {
+    // Check for --test flag
+    let use_test = args().any(|arg| arg == "--test");
+    
     // Parse command line options
     let mut iter = args().skip(1).flat_map(|arg| arg.parse::<u32>().ok());
     let (year, day) = (iter.next(), iter.next());
@@ -25,7 +28,7 @@ fn main() {
         .flatten()
         .filter(|s| year.is_none() || year == Some(s.year))
         .filter(|s| day.is_none() || day == Some(s.day))
-        .fold((0, Duration::ZERO), run_solution);
+        .fold((0, Duration::ZERO), |acc, s| run_solution(acc, s, use_test));
 
     // Print totals
     if args().any(|arg| arg == "--totals") {
@@ -34,16 +37,20 @@ fn main() {
     }
 }
 
-fn run_solution((stars, duration): (u32, Duration), solution: &Solution) -> (u32, Duration) {
+fn run_solution((stars, duration): (u32, Duration), solution: &Solution, use_test: bool) -> (u32, Duration) {
     let Solution { year, day, wrapper } = solution;
-    let path = format!("inputs/year{year}/day{day:02}.txt");
+    let path = if use_test {
+        format!("tests/year{year}/day{day:02}_input.txt")
+    } else {
+        format!("inputs/year{year}/day{day:02}.txt")
+    };
 
     if let Ok(data) = read_to_string(&path) {
         let instant = Instant::now();
         let (part1, part2) = wrapper(&data);
         let elapsed = instant.elapsed();
 
-        println!("{year} Day {day:02}");
+        println!("{year} Day {day:02}{}", if use_test { " (TEST)" } else { "" });
         println!("    Part 1: {part1}");
         println!("    Part 2: {part2}");
 
@@ -80,5 +87,5 @@ macro_rules! run {
 }
 
 run!(year2025
-    day01
+    day01, day02
 );
