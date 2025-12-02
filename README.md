@@ -7,6 +7,9 @@ Logic for running multiple years are more or less directly adapted from there.
 Tests have been changed to use txt files for input.
 Benchmarks have been changed to use criterion.
 
+
+All actual task solutions are mine.
+
 ## Usage
 
 Add input files in the `inputs/yearXXXX/` directory, named `dayXX.txt` for each day.
