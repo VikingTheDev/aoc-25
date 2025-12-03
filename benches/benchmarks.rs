@@ -1,11 +1,15 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use std::hint::black_box;
+use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId, measurement::WallTime};
+use criterion::black_box;
 use std::fs::read_to_string;
+use std::collections::BTreeMap;
 
 macro_rules! benchmark {
     ($year:tt $($day:tt),*) => {
         fn $year(c: &mut Criterion) {
             use aoc_25::$year;
+            
+            let mut results: BTreeMap<u32, (f64, f64)> = BTreeMap::new();
+            
             $(
                 {
                     let day_num = stringify!($day).trim_start_matches("day").parse::<u32>().unwrap();
@@ -14,17 +18,17 @@ macro_rules! benchmark {
                     if let Ok(data) = read_to_string(&path) {
                         let parsed = $year::$day::parse(&data);
 
-                        c.bench_function(&format!("{}_day{:02}_parse", stringify!($year), day_num), |b| {
-                            b.iter(|| $year::$day::parse(black_box(&data)))
-                        });
-
-                        c.bench_function(&format!("{}_day{:02}_part1", stringify!($year), day_num), |b| {
+                        // Benchmark part1
+                        let mut group = c.benchmark_group(format!("{}_day{:02}", stringify!($year), day_num));
+                        group.bench_function("part1", |b| {
                             b.iter(|| $year::$day::part1(black_box(&parsed)))
                         });
-
-                        c.bench_function(&format!("{}_day{:02}_part2", stringify!($year), day_num), |b| {
+                        
+                        // Benchmark part2
+                        group.bench_function("part2", |b| {
                             b.iter(|| $year::$day::part2(black_box(&parsed)))
                         });
+                        group.finish();
                     }
                 }
             )*
@@ -33,13 +37,8 @@ macro_rules! benchmark {
 }
 
 benchmark!(year2025
-    day01, day02
+    day01, day02, day3
 );
-
-// Add more years as needed:
-// benchmark!(year2024
-//     day01, day02
-// );
 
 fn custom_criterion() -> Criterion {
     Criterion::default()
