@@ -45,5 +45,5 @@ macro_rules! benchmark_year {
 }
 
 fn main() {
-    benchmark_year!(year2025 day01, day02, day03);
+    benchmark_year!(year2025 day01, day02, day03, day04);
 }

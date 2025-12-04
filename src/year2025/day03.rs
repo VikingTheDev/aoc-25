@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 type ParsedInput = Vec<Vec<u8>>;
 
 pub fn parse(input: &str) -> ParsedInput {
@@ -25,13 +27,12 @@ pub fn part1(_input: &ParsedInput) -> u32 {
     for line in _input {
         let mut max_num = 0;
 
-        // We have to pick exactly two digits in *order*
-        // The two digits have to produce the maximum product when combined (1234 -> 34)
-        for (i, &digit1) in line.iter().enumerate() {
-            for &digit2 in &line[i + 1..] {
-                let product = (digit1 as u32) * 10 + (digit2 as u32);
-                if product > max_num {
-                    max_num = product;
+        // Pick any two positions i < j and form number line[i]*10 + line[j]
+        for i in 0..line.len() {
+            for j in (i+1)..line.len() {
+                let num = (line[i] as u32) * 10 + (line[j] as u32);
+                if num > max_num {
+                    max_num = num;
                 }
             }
         }
