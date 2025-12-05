@@ -71,4 +71,7 @@ cargo bench year2025
 
 # Run benchmarks for a specific day
 cargo bench year2025_day01
+
+# Report summary of benchmarks
+cargo bench --bench summary
 ```
