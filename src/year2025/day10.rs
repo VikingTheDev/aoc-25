@@ -1,3 +1,6 @@
+use rayon::prelude::*;
+use std::collections::HashMap;
+
 // Seems like the longest line of lights is 10, so 16 bits is sufficient.
 // Using u16 with each bit representing on/off allows bitwise operations for fast checks.
 type IndicatorLights = u16;
@@ -56,247 +59,221 @@ pub fn part1(_input: &ParsedInput) -> u32{
     // We can press each button any number of times.
     // We have to find the fewest button presses for the lights to match the target state.
     // The result is the sum of the fewest button presses for each input line.
-    //
-    // Optimization: Use fixed-size array for visited states instead of HashSet.
     let mut total_presses: u32 = 0;
-    
-    // Reuse visited array across iterations (clear with generation counter)
-    let mut visited: Vec<u32> = vec![0; 65536];
-    let mut generation: u32 = 0;
-    
     for (_idx, (target_lights, wiring, _joltage_reqs)) in _input.iter().enumerate() {
-        generation += 1;
-        
-        if *target_lights == 0 {
-            // Already at target
-            continue;
-        }
-        
-        use std::collections::VecDeque;
-        let mut queue: VecDeque<(u16, u32)> = VecDeque::new();
-        
-        queue.push_back((0, 0)); // Start with all lights off
-        visited[0] = generation;
-        
+        // BFS to find fewest presses
+        use std::collections::{VecDeque, HashSet};
+        let mut queue: VecDeque<(IndicatorLights, u32)> = VecDeque::new();
+        let mut visited: HashSet<IndicatorLights> = HashSet::new();
+        queue.push_back((0x0000, 0)); // Start with all lights off
+        visited.insert(0x0000);
+        let mut found_presses: u32 = 0;
         while let Some((current_lights, presses)) = queue.pop_front() {
-            if current_lights == *target_lights {
-                total_presses += presses;
+            if &current_lights == target_lights {
+                found_presses = presses;
                 break;
             }
             // Try pressing each button
             for &button in wiring.iter() {
-                let next_lights = current_lights ^ button;
-                if visited[next_lights as usize] != generation {
-                    visited[next_lights as usize] = generation;
+                let next_lights = current_lights ^ button; // Toggle lights
+                if !visited.contains(&next_lights) {
+                    visited.insert(next_lights);
                     queue.push_back((next_lights, presses + 1));
                 }
             }
         }
+        total_presses += found_presses;
     }
     total_presses
 }
 
-pub fn part2(_input: &ParsedInput) -> u32 {
-    // We need each light to reach EXACTLY its joltage requirement.
-    // This is: A * x = b, minimize sum(x), x >= 0
-    // Where A[light][button] = 1 if button affects light
-    //
-    // Use Gaussian elimination to identify dependencies, then search free vars.
-    
-    let mut total_presses: u32 = 0;
+pub fn part2(input: &ParsedInput) -> u32 {
+    // Process all machines in parallel
+    input.par_iter()
+        .map(|(_target_lights, wiring, joltage_reqs)| {
+            solve_joltage_ilp(wiring, joltage_reqs)
+        })
+        .sum()
+}
 
-    for (_idx, (_target_lights, wiring, joltage_reqs)) in _input.iter().enumerate() {
-        let num_lights = joltage_reqs.len();
-        let num_buttons = wiring.len();
-        
-        // Build matrix: affects[light][button] = 1 if button affects light
-        let mut affects: Vec<Vec<i64>> = vec![vec![0; num_buttons]; num_lights];
-        for (btn_idx, &button) in wiring.iter().enumerate() {
-            for light_idx in 0..num_lights {
-                let bit_pos = num_lights - 1 - light_idx;
-                if (button & (1 << bit_pos)) != 0 {
-                    affects[light_idx][btn_idx] = 1;
-                }
+/// Solve the joltage problem using Gaussian elimination + bounded search.
+fn solve_joltage_ilp(wiring: &[u16], joltage_reqs: &[u16]) -> u32 {
+    let num_counters = joltage_reqs.len();
+    let num_buttons = wiring.len();
+    
+    // Build matrix A where A[i][j] = 1 if button j affects counter i
+    let mut matrix: Vec<Vec<i64>> = vec![vec![0; num_buttons + 1]; num_counters];
+    for (btn_idx, &button) in wiring.iter().enumerate() {
+        for counter_idx in 0..num_counters {
+            let bit_pos = num_counters - 1 - counter_idx;
+            if (button & (1 << bit_pos)) != 0 {
+                matrix[counter_idx][btn_idx] = 1;
             }
         }
-        let reqs: Vec<i64> = joltage_reqs.iter().map(|&r| r as i64).collect();
-        
-        let result = solve_system(&affects, &reqs, num_lights, num_buttons);
-        total_presses += result;
     }
-
-    total_presses
-}
-
-fn solve_system(
-    affects: &[Vec<i64>],
-    reqs: &[i64],
-    num_lights: usize,
-    num_buttons: usize,
-) -> u32 {
-    // Create augmented matrix and perform row reduction
-    let mut matrix: Vec<Vec<i64>> = vec![vec![0; num_buttons + 1]; num_lights];
-    for i in 0..num_lights {
-        for j in 0..num_buttons {
-            matrix[i][j] = affects[i][j];
-        }
-        matrix[i][num_buttons] = reqs[i];
+    for (counter_idx, &req) in joltage_reqs.iter().enumerate() {
+        matrix[counter_idx][num_buttons] = req as i64;
     }
     
-    // Gaussian elimination to get row echelon form (fully reduced)
+    // Gaussian elimination
     let mut pivot_row = 0;
-    let mut pivot_cols: Vec<usize> = Vec::new();
-    let mut free_cols: Vec<usize> = Vec::new();
+    let mut pivot_info: Vec<(usize, usize)> = Vec::new();
+    let mut is_pivot_col = vec![false; num_buttons];
     
     for col in 0..num_buttons {
-        // Find row with non-zero in this column
-        let mut found = false;
-        for row in pivot_row..num_lights {
+        let mut pivot = None;
+        for row in pivot_row..num_counters {
             if matrix[row][col] != 0 {
-                matrix.swap(pivot_row, row);
-                found = true;
+                pivot = Some(row);
                 break;
             }
         }
         
-        if found {
-            pivot_cols.push(col);
-            // Eliminate this column from ALL other rows (not just below)
-            for row in 0..num_lights {
-                if row != pivot_row && matrix[row][col] != 0 {
-                    let factor = matrix[row][col];
-                    let pivot_val = matrix[pivot_row][col];
-                    for c in 0..=num_buttons {
-                        matrix[row][c] = matrix[row][c] * pivot_val - matrix[pivot_row][c] * factor;
+        let Some(found_row) = pivot else { continue };
+        
+        matrix.swap(pivot_row, found_row);
+        pivot_info.push((pivot_row, col));
+        is_pivot_col[col] = true;
+        
+        let pivot_val = matrix[pivot_row][col];
+        for row in 0..num_counters {
+            if row != pivot_row && matrix[row][col] != 0 {
+                let factor = matrix[row][col];
+                for c in 0..=num_buttons {
+                    matrix[row][c] = matrix[row][c] * pivot_val - matrix[pivot_row][c] * factor;
+                }
+                let g = matrix[row].iter().fold(0i64, |acc, &x| gcd(acc, x));
+                if g > 1 {
+                    for x in matrix[row].iter_mut() {
+                        *x /= g;
                     }
                 }
             }
-            pivot_row += 1;
-        } else {
-            free_cols.push(col);
+        }
+        pivot_row += 1;
+    }
+    
+    for row in matrix.iter_mut() {
+        let g = row.iter().fold(0i64, |acc, &x| gcd(acc, x));
+        if g > 1 {
+            for x in row.iter_mut() {
+                *x /= g;
+            }
         }
     }
     
-    let mut best = u32::MAX;
+    let free_cols: Vec<usize> = (0..num_buttons).filter(|&c| !is_pivot_col[c]).collect();
+    
+    // Try free vars = 0 first as baseline
+    let base_solution = try_solve_bounded(&matrix, &pivot_info, &free_cols, num_buttons, &vec![0; free_cols.len()]);
+    let mut best = base_solution.unwrap_or(u32::MAX);
     
     if free_cols.is_empty() {
-        // Unique solution - just compute it
-        let mut presses = vec![0i64; num_buttons];
-        for (row, &pivot_col) in pivot_cols.iter().enumerate() {
-            let rhs = matrix[row][num_buttons];
-            let coef = matrix[row][pivot_col];
-            if coef != 0 {
-                if rhs % coef != 0 {
-                    return u32::MAX;
-                }
-                presses[pivot_col] = rhs / coef;
-            }
-        }
-        if presses.iter().all(|&p| p >= 0) {
-            return presses.iter().sum::<i64>() as u32;
-        }
-        return u32::MAX;
+        return best;
     }
     
-    // Compute per-free-variable bounds based on constraints
-    // For each row: pivot_coef * pivot_var = rhs - sum(other_coefs * other_vars)
-    // Since all vars >= 0, we can derive bounds
-    let mut free_bounds: Vec<i64> = vec![i64::MAX; free_cols.len()];
+    // Bound: each free variable shouldn't exceed max joltage requirement
+    let max_req = *joltage_reqs.iter().max().unwrap_or(&0) as i64;
+    let bound = max_req.min(500);
     
-    for (row, &pivot_col) in pivot_cols.iter().enumerate() {
-        let pivot_coef = matrix[row][pivot_col];
-        let rhs = matrix[row][num_buttons];
-        
-        // For pivot_var >= 0: rhs - sum(other terms) must have same sign as pivot_coef
-        // This gives constraints on free variables
-        for (fi, &free_col) in free_cols.iter().enumerate() {
-            let free_coef = matrix[row][free_col];
-            if free_coef != 0 {
-                // If free_coef and pivot_coef have opposite signs, free var contributes positively to pivot
-                // If same signs, free var contributes negatively - bound the free var
-                if (free_coef > 0) == (pivot_coef > 0) {
-                    // Same sign: increasing free var decreases pivot var
-                    // pivot = (rhs - free_coef * free) / pivot_coef
-                    // For pivot >= 0: free <= rhs / free_coef (if both positive)
-                    let bound = rhs.abs() / free_coef.abs();
-                    free_bounds[fi] = free_bounds[fi].min(bound + 1);
-                }
-            }
-        }
-    }
+    // Search over free variables
+    let mut free_vals = vec![0i64; free_cols.len()];
     
-    // Also bound by total requirement
-    let total_req: i64 = reqs.iter().sum();
-    for fb in free_bounds.iter_mut() {
-        *fb = (*fb).min(total_req + 1);
-    }
-    
-    // Search over free variables with pruning
-    try_free_vars(&matrix, &pivot_cols, &free_cols, &free_bounds, num_buttons, 0, &mut vec![0i64; free_cols.len()], &mut best, 0);
+    search_free_vars_with_bounds(
+        &matrix,
+        &pivot_info,
+        &free_cols,
+        num_buttons,
+        bound,
+        0,
+        &mut free_vals,
+        &mut best,
+        0,
+    );
     
     best
 }
 
-fn try_free_vars(
+fn gcd(a: i64, b: i64) -> i64 {
+    let (a, b) = (a.abs(), b.abs());
+    if b == 0 { a } else { gcd(b, a % b) }
+}
+
+fn try_solve_bounded(
     matrix: &[Vec<i64>],
-    pivot_cols: &[usize],
+    pivot_info: &[(usize, usize)],
     free_cols: &[usize],
-    free_bounds: &[i64],
     num_buttons: usize,
+    free_vals: &[i64],
+) -> Option<u32> {
+    let mut presses = vec![0i64; num_buttons];
+    
+    // Set free variables
+    for (i, &col) in free_cols.iter().enumerate() {
+        presses[col] = free_vals[i];
+    }
+    
+    // Back-substitute to find pivot variables
+    for &(row, pivot_col) in pivot_info.iter().rev() {
+        let mut rhs = matrix[row][num_buttons];
+        for col in 0..num_buttons {
+            if col != pivot_col {
+                rhs -= matrix[row][col] * presses[col];
+            }
+        }
+        
+        let coef = matrix[row][pivot_col];
+        if coef == 0 { return None; }
+        if rhs % coef != 0 { return None; }
+        presses[pivot_col] = rhs / coef;
+    }
+    
+    // Check non-negativity
+    if presses.iter().any(|&p| p < 0) {
+        return None;
+    }
+    
+    let total: i64 = presses.iter().sum();
+    if total < 0 || total > u32::MAX as i64 {
+        return None;
+    }
+    
+    Some(total as u32)
+}
+
+fn search_free_vars_with_bounds(
+    matrix: &[Vec<i64>],
+    pivot_info: &[(usize, usize)],
+    free_cols: &[usize],
+    num_buttons: usize,
+    bound: i64,
     idx: usize,
     free_vals: &mut Vec<i64>,
     best: &mut u32,
-    current_sum: i64,
+    current_free_sum: i64,
 ) {
-    // Early pruning: if current sum already exceeds best, stop
-    if current_sum as u32 >= *best {
+    if current_free_sum as u32 >= *best {
         return;
     }
     
     if idx == free_cols.len() {
-        // Solve for pivot variables given free variable values
-        let mut presses = vec![0i64; num_buttons];
-        
-        // Set free variables
-        for (i, &col) in free_cols.iter().enumerate() {
-            presses[col] = free_vals[i];
-        }
-        
-        // Back-substitute to find pivot variables
-        for (row, &pivot_col) in pivot_cols.iter().enumerate() {
-            let mut rhs = matrix[row][num_buttons];
-            for col in 0..num_buttons {
-                if col != pivot_col {
-                    rhs -= matrix[row][col] * presses[col];
-                }
-            }
-            let coef = matrix[row][pivot_col];
-            if coef != 0 {
-                if rhs % coef != 0 {
-                    return; // No integer solution
-                }
-                presses[pivot_col] = rhs / coef;
-            }
-        }
-        
-        // Check all non-negative
-        if presses.iter().all(|&p| p >= 0) {
-            let total: i64 = presses.iter().sum();
-            if total >= 0 && (total as u32) < *best {
-                *best = total as u32;
+        if let Some(total) = try_solve_bounded(matrix, pivot_info, free_cols, num_buttons, free_vals) {
+            if total < *best {
+                *best = total;
             }
         }
         return;
     }
     
-    // Try values for this free variable up to its bound
-    let bound = free_bounds[idx];
     for v in 0..=bound {
-        let new_sum = current_sum + v;
+        let new_sum = current_free_sum + v;
         if new_sum as u32 >= *best {
             break;
         }
         free_vals[idx] = v;
-        try_free_vars(matrix, pivot_cols, free_cols, free_bounds, num_buttons, idx + 1, free_vals, best, new_sum);
+        search_free_vars_with_bounds(
+            matrix, pivot_info, free_cols, num_buttons, bound,
+            idx + 1, free_vals, best, new_sum,
+        );
     }
 }

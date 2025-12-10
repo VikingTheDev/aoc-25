@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 pub struct Coordinate {
     x: u32,
     y: u32,
@@ -21,108 +23,89 @@ pub fn parse(input: &str) -> ParsedInput {
         .collect()
 }
 
-pub fn part1(_input: &ParsedInput) -> u32{
-    // We have to find the 1000 closest pairs of coordinates.
-    // Each time we find the closest pair, we have to connect them
-    // and add them to a circuit.
-    // A point can be connected to multiple other points.
-    // The result is the product of the size of the three largest circuits.
-    
-    let mut connections_to_make = 1000;
+// Calculate squared euclidean distance (avoids sqrt - faster and sufficient for comparisons)
+#[inline]
+fn squared_distance(a: &Coordinate, b: &Coordinate) -> u64 {
+    let dx = (a.x as i64) - (b.x as i64);
+    let dy = (a.y as i64) - (b.y as i64);
+    let dz = (a.z as i64) - (b.z as i64);
+    (dx * dx + dy * dy + dz * dz) as u64
+}
 
-    // Handle test case
-    if _input.len() == 20 {
+/// Compute all pairwise distances and return them sorted
+fn compute_sorted_distances(input: &ParsedInput) -> Vec<(usize, usize, u64)> {
+    let n = input.len();
+    let mut distances: Vec<(usize, usize, u64)> = (0..n)
+        .into_par_iter()
+        .flat_map(|i| {
+            ((i+1)..n).map(move |j| (i, j, squared_distance(&input[i], &input[j])))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    
+    // Use parallel sort for better performance on large arrays
+    distances.par_sort_unstable_by_key(|&(_, _, d)| d);
+    distances
+}
+
+pub fn part1(input: &ParsedInput) -> u32 {
+    let mut connections_to_make = 1000;
+    if input.len() == 20 {
         connections_to_make = 10;
     }
 
-    // Union-Find structure to track which circuit each box belongs to
-    let mut parent: Vec<usize> = (0.._input.len()).collect();
-    let mut size: Vec<usize> = vec![1; _input.len()];
+    let mut parent: Vec<usize> = (0..input.len()).collect();
+    let mut size: Vec<usize> = vec![1; input.len()];
     
-    // Calculate all pairwise distances
-    let mut distances: Vec<((usize, usize), f64)> = Vec::new();
-    for i in 0.._input.len() {
-        for j in (i+1).._input.len() {
-            let dist = euclidean_distance(&_input[i], &_input[j]);
-            distances.push(((i, j), dist));
-        }
-    }
-    // Sort to get closest pairs
-    distances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+    let distances = compute_sorted_distances(input);
     
-    // Now connect the closest pairs
-    for &((i, j), _) in distances.iter().take(connections_to_make) {
+    // Connect the closest pairs
+    for &(i, j, _) in distances.iter().take(connections_to_make) {
         union(&mut parent, &mut size, i, j);
     }
     
-    // Count the size of each circuit
+    // Count circuit sizes
     use std::collections::HashMap;
     let mut circuit_sizes: HashMap<usize, usize> = HashMap::new();
-    for i in 0.._input.len() {
+    for i in 0..input.len() {
         let root = find(&mut parent, i);
         *circuit_sizes.entry(root).or_insert(0) += 1;
     }
     
-    // Get the three largest circuits
+    // Get three largest
     let mut sizes: Vec<usize> = circuit_sizes.values().copied().collect();
-    sizes.sort_by(|a, b| b.cmp(a));
+    sizes.sort_unstable_by(|a, b| b.cmp(a));
     
-    let result = sizes.iter().take(3).map(|&s| s as u32).product();
-    result
+    sizes.iter().take(3).map(|&s| s as u32).product()
 }
 
-pub fn part2(_input: &ParsedInput) -> u32 {
-    // Now we need to keep connecting the closest pairs until all points are in a single circuit
-    // We can reuse much of the code from part1
-    // The result is the product of the x coordinates for the last two points connected to the circuit
-    let mut parent: Vec<usize> = (0.._input.len()).collect();
-    let mut size: Vec<usize> = vec![1; _input.len()];
+pub fn part2(input: &ParsedInput) -> u64 {
+    let n = input.len();
+    let mut parent: Vec<usize> = (0..n).collect();
+    let mut size: Vec<usize> = vec![1; n];
 
-    // Calculate all pairwise distances
-    let mut distances: Vec<((usize, usize), f64)> = Vec::new();
-    for i in 0.._input.len() {
-        for j in (i+1).._input.len() {
-            let dist = euclidean_distance(&_input[i], &_input[j]);
-            distances.push(((i, j), dist));
-        }
-    }
-    // Sort to get closest pairs
-    distances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+    let distances = compute_sorted_distances(input);
     
-    // Keep track of the last two points connected
-    let mut last_two_connected: Vec<usize> = Vec::new();
-    // Continue connecting until all points are in a single circuit
-    for &((i, j), _) in distances.iter() {
+    // Track last two connected points
+    let mut last_i = 0;
+    let mut last_j = 0;
+    
+    for &(i, j, _) in distances.iter() {
         let root_i = find(&mut parent, i);
         let root_j = find(&mut parent, j);
         if root_i != root_j {
             union(&mut parent, &mut size, i, j);
-            last_two_connected.push(i);
-            last_two_connected.push(j);
-            if last_two_connected.len() > 4 {
-                last_two_connected.remove(0);
-                last_two_connected.remove(0);
-            }
-            // Check if all points are connected
+            last_i = i;
+            last_j = j;
+            // Check if all connected
             let first_root = find(&mut parent, 0);
-            if size[first_root] == _input.len() {
+            if size[first_root] == n {
                 break;
             }
         }
     }
 
-    // Get the x coordinates of the last two connected points and return their product
-    let x1 = _input[last_two_connected[last_two_connected.len() - 2]].x;
-    let x2 = _input[last_two_connected[last_two_connected.len() - 1]].x;
-    x1 * x2 as u32
-}
-
-// Calculate euclidean distance between two 3D Coordinates
-pub fn euclidean_distance(a: &Coordinate, b: &Coordinate) -> f64 {
-    let dx = (a.x as f64) - (b.x as f64);
-    let dy = (a.y as f64) - (b.y as f64);
-    let dz = (a.z as f64) - (b.z as f64);
-    (dx * dx + dy * dy + dz * dz).sqrt()
+    (input[last_i].x as u64) * (input[last_j].x as u64)
 }
 
 // Union-Find union operation

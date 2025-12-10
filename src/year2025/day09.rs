@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 type ParsedInput = Vec<(u64, u64)>;
 
 pub fn parse(input: &str) -> ParsedInput {
@@ -34,17 +36,33 @@ pub fn part1(_input: &ParsedInput) -> u64 {
 
 pub fn part2(_input: &ParsedInput) -> u64 {
     // Build list of polygon edges (each edge is a line segment)
-    let mut edges: Vec<((u64, u64), (u64, u64))> = Vec::new();
-    for i in 0.._input.len() {
-        let next = (i + 1) % _input.len();
-        edges.push((_input[i], _input[next]));
-    }
+    let edges: Vec<((u64, u64), (u64, u64))> = (0.._input.len())
+        .map(|i| {
+            let next = (i + 1) % _input.len();
+            (_input[i], _input[next])
+        })
+        .collect();
     
-    let mut largest_area = 0;
+    // Pre-compute and sort vertical and horizontal edges for faster lookup
+    let vertical_edges: Vec<(u64, u64, u64)> = edges.iter()
+        .filter(|&&((ex1, _), (ex2, _))| ex1 == ex2)
+        .map(|&((ex1, ey1), (_, ey2))| (ex1, ey1.min(ey2), ey1.max(ey2)))
+        .collect();
     
-    // For each pair of red tiles as opposite corners
-    for i in 0.._input.len() {
-        for j in (i+1).._input.len() {
+    let horizontal_edges: Vec<(u64, u64, u64)> = edges.iter()
+        .filter(|&&((_, ey1), (_, ey2))| ey1 == ey2)
+        .map(|&((ex1, ey1), (ex2, _))| (ey1, ex1.min(ex2), ex1.max(ex2)))
+        .collect();
+    
+    // Generate all pairs of indices
+    let n = _input.len();
+    let pairs: Vec<(usize, usize)> = (0..n)
+        .flat_map(|i| ((i+1)..n).map(move |j| (i, j)))
+        .collect();
+    
+    // Process pairs in parallel
+    pairs.par_iter()
+        .filter_map(|&(i, j)| {
             let (x1, y1) = _input[i];
             let (x2, y2) = _input[j];
             
@@ -53,28 +71,25 @@ pub fn part2(_input: &ParsedInput) -> u64 {
             let min_y = y1.min(y2);
             let max_y = y1.max(y2);
             
-            // Check if the rectangle is entirely inside the polygon
-            // by verifying no polygon edge crosses through the rectangle's interior
-            if is_rectangle_inside_polygon(&edges, _input, min_x, max_x, min_y, max_y) {
-                let area = (max_x - min_x + 1) * (max_y - min_y + 1);
-                if area > largest_area {
-                    largest_area = area;
-                }
+            if is_rectangle_inside_polygon_fast(&vertical_edges, &horizontal_edges, &edges, _input, min_x, max_x, min_y, max_y) {
+                Some((max_x - min_x + 1) * (max_y - min_y + 1))
+            } else {
+                None
             }
-        }
-    }
-    
-    largest_area
+        })
+        .max()
+        .unwrap_or(0)
 }
 
-// Check if a rectangle is entirely inside the polygon (no edge crosses through interior)
-fn is_rectangle_inside_polygon(
+// Faster version using pre-sorted edges
+fn is_rectangle_inside_polygon_fast(
+    vertical_edges: &[(u64, u64, u64)],
+    horizontal_edges: &[(u64, u64, u64)],
     edges: &[((u64, u64), (u64, u64))],
     polygon: &[(u64, u64)],
     min_x: u64, max_x: u64, min_y: u64, max_y: u64
 ) -> bool {
     // First check: the center of the rectangle must be inside the polygon
-    // (or we can check any interior point)
     let center_x = (min_x + max_x) / 2;
     let center_y = (min_y + max_y) / 2;
     
@@ -82,12 +97,21 @@ fn is_rectangle_inside_polygon(
         return false;
     }
     
-    // Second check: no polygon edge can cross through the interior of the rectangle
-    // An edge crosses through the interior if it enters the rectangle on one side and exits on another
-    for &((ex1, ey1), (ex2, ey2)) in edges {
-        // Check if this edge crosses the interior of the rectangle
-        if edge_crosses_rectangle_interior(ex1, ey1, ex2, ey2, min_x, max_x, min_y, max_y) {
-            return false;
+    // Check vertical edges that cross interior
+    for &(edge_x, edge_min_y, edge_max_y) in vertical_edges {
+        if edge_x > min_x && edge_x < max_x {
+            if edge_min_y < max_y && edge_max_y > min_y {
+                return false;
+            }
+        }
+    }
+    
+    // Check horizontal edges that cross interior
+    for &(edge_y, edge_min_x, edge_max_x) in horizontal_edges {
+        if edge_y > min_y && edge_y < max_y {
+            if edge_min_x < max_x && edge_max_x > min_x {
+                return false;
+            }
         }
     }
     
@@ -133,42 +157,4 @@ fn point_on_segment(px: u64, py: u64, x1: u64, y1: u64, x2: u64, y2: u64) -> boo
     } else {
         false
     }
-}
-
-fn edge_crosses_rectangle_interior(ex1: u64, ey1: u64, ex2: u64, ey2: u64, min_x: u64, max_x: u64, min_y: u64, max_y: u64) -> bool {
-    // An axis-aligned edge crosses the rectangle's interior if:
-    // - For vertical edge (ex1 == ex2): the x is strictly inside (min_x < ex1 < max_x) 
-    //   and the y range overlaps with [min_y, max_y]
-    // - For horizontal edge (ey1 == ey2): the y is strictly inside (min_y < ey1 < max_y)
-    //   and the x range overlaps with [min_x, max_x]
-    
-    if ex1 == ex2 {
-        // Vertical edge
-        let edge_x = ex1;
-        let edge_min_y = ey1.min(ey2);
-        let edge_max_y = ey1.max(ey2);
-        
-        // Edge x must be strictly inside the rectangle's x range
-        if edge_x > min_x && edge_x < max_x {
-            // Check if the edge's y range overlaps with rectangle's y range
-            if edge_min_y < max_y && edge_max_y > min_y {
-                return true;
-            }
-        }
-    } else if ey1 == ey2 {
-        // Horizontal edge
-        let edge_y = ey1;
-        let edge_min_x = ex1.min(ex2);
-        let edge_max_x = ex1.max(ex2);
-        
-        // Edge y must be strictly inside the rectangle's y range
-        if edge_y > min_y && edge_y < max_y {
-            // Check if the edge's x range overlaps with rectangle's x range
-            if edge_min_x < max_x && edge_max_x > min_x {
-                return true;
-            }
-        }
-    }
-    
-    false
 }
