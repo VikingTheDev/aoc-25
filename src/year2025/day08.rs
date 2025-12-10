@@ -49,7 +49,7 @@ pub fn part1(_input: &ParsedInput) -> u32{
     }
     // Sort to get closest pairs
     distances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-
+    
     // Now connect the closest pairs
     for &((i, j), _) in distances.iter().take(connections_to_make) {
         union(&mut parent, &mut size, i, j);
