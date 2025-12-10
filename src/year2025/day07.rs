@@ -68,26 +68,39 @@ pub fn part2(_input: &ParsedInput) -> u64{
     let mut path_counts: HashMap<Point, u64> = HashMap::new();
     
     // Find the starting position
-    let mut start_x = 0;
+    let mut start_x = None;
     for x in 0..grid.width {
         if grid.get(&Point { x: x as i32, y: 0 }) == Some(&'S') {
-            start_x = x as i32;
+            start_x = Some(x as i32);
             break;
         }
     }
+    
+    let start_x = match start_x {
+        Some(x) => {
+            x
+        },
+        None => {
+            return 0;
+        }
+    };
     
     // Initialize: the position below S has 1 path
     let start_pos = Point { x: start_x, y: 1 };
     path_counts.insert(start_pos, 1);
     
     // Process layer by layer from top to bottom
-    for y in 1..grid.height as i32 {
+    // Go one layer beyond to count exits
+    for y in 1..=(grid.height as i32) {
         // Collect all positions at current layer that have paths
         let current_layer: Vec<(Point, u64)> = path_counts
             .iter()
             .filter(|(p, _)| p.y == y)
             .map(|(p, &count)| (*p, count))
             .collect();
+        
+        if !current_layer.is_empty() {
+        }
         
         for (pos, count) in current_layer {
             let cell = grid.get(&pos);
@@ -100,7 +113,7 @@ pub fn part2(_input: &ParsedInput) -> u64{
                     if left_pos.x >= 0 && (left_pos.x as usize) < grid.width {
                         *path_counts.entry(left_pos).or_insert(0) += count;
                     }
-                    if (right_pos.x as usize) < grid.width {
+                    if right_pos.x >= 0 && (right_pos.x as usize) < grid.width {
                         *path_counts.entry(right_pos).or_insert(0) += count;
                     }
                 }
@@ -110,16 +123,16 @@ pub fn part2(_input: &ParsedInput) -> u64{
                     *path_counts.entry(next_pos).or_insert(0) += count;
                 }
                 _ => {
-                    // Blocked or invalid - paths end here
+                    // Blocked, invalid, or out of bounds - paths end here
                 }
             }
         }
     }
     
-    // Count all paths that reached the bottom (y >= height)
+    // Count all paths that reached y == height (just past the bottom row)
     let mut total_paths = 0;
     for (pos, count) in path_counts.iter() {
-        if pos.y >= grid.height as i32 {
+        if pos.y == grid.height as i32 {
             total_paths += count;
         }
     }
