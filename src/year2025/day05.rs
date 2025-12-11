@@ -8,7 +8,8 @@ pub fn parse(input: &str) -> ParsedInput {
     let ranges_section = sections.next().unwrap();
     let ids_section = sections.next().unwrap();
 
-    let mut ranges: Vec<(u64, u64)> = ranges_section.lines()
+    let mut ranges: Vec<(u64, u64)> = ranges_section
+        .lines()
         .filter_map(|line| {
             let mut parts = line.trim().split('-');
             if let (Some(start_str), Some(end_str)) = (parts.next(), parts.next()) {
@@ -19,8 +20,9 @@ pub fn parse(input: &str) -> ParsedInput {
             None
         })
         .collect();
-    
-    let ids: Vec<u64> = ids_section.lines()
+
+    let ids: Vec<u64> = ids_section
+        .lines()
         .filter_map(|line| line.trim().parse::<u64>().ok())
         .collect();
 
@@ -70,13 +72,13 @@ pub fn id_in_range(id: u64, range: &(u64, u64)) -> bool {
     id >= range.0 && id <= range.1
 }
 
-pub fn part2(_input: &ParsedInput) -> u64{
+pub fn part2(_input: &ParsedInput) -> u64 {
     // Now we have to count the total number of valid IDs in the ranges
     // We have to first handle overlapping ranges
     // Then we can sum up the sizes of the non-overlapping ranges
     // Ranges are already merged in parse, so just sum up their sizes
     let (ranges, _ids) = _input;
-    
+
     let mut total_count: u64 = 0;
     for range in ranges.iter() {
         total_count += (range.1 - range.0 + 1) as u64;

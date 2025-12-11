@@ -5,7 +5,8 @@ type ParsedInput = Grid<char>;
 
 pub fn parse(input: &str) -> ParsedInput {
     // We create a 2d vector of chars
-    let grid: Vec<Vec<char>> = input.trim()
+    let grid: Vec<Vec<char>> = input
+        .trim()
         .lines()
         .map(|line| line.chars().collect())
         .collect();
@@ -14,13 +15,16 @@ pub fn parse(input: &str) -> ParsedInput {
     Grid::from_vec(grid)
 }
 
-pub fn part1(_input: &ParsedInput) -> u32{
+pub fn part1(_input: &ParsedInput) -> u32 {
     // Iterate over all points. For each point, check if it is a "toilet paper roll" (@)
     // If it is, we should count it if less than 4 of its 8 neighbors are also toilet paper rolls
     let mut count: u32 = 0;
     for y in 0.._input.height {
         for x in 0.._input.width {
-            let point = Point { x: x as i32, y: y as i32 };
+            let point = Point {
+                x: x as i32,
+                y: y as i32,
+            };
             if _input.get(&point) == Some(&'@') {
                 let neighbors = _input.neighbors8(&point);
                 let mut tp_count = 0;
@@ -38,12 +42,15 @@ pub fn part1(_input: &ParsedInput) -> u32{
     count
 }
 
-pub fn part2(_input: &ParsedInput) -> u32{
+pub fn part2(_input: &ParsedInput) -> u32 {
     // Initial pass, collect all points to be removed
     let mut to_be_removed: Vec<Point> = Vec::new();
     for y in 0.._input.height {
         for x in 0.._input.width {
-            let point = Point { x: x as i32, y: y as i32 };
+            let point = Point {
+                x: x as i32,
+                y: y as i32,
+            };
             if _input.get(&point) == Some(&'@') {
                 let neighbors = _input.neighbors8(&point);
                 let mut tp_count = 0;
@@ -58,7 +65,7 @@ pub fn part2(_input: &ParsedInput) -> u32{
             }
         }
     }
-    
+
     let mut count = to_be_removed.len() as u32;
     let mut grid = _input.clone();
     // Iterate until no more to be removed

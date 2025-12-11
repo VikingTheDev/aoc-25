@@ -3,15 +3,21 @@ type ParsedInput = Vec<(String, Vec<String>)>;
 pub fn parse(input: &str) -> ParsedInput {
     // Each line is structured as "key: val val val"
     // We parse it into a vector of (key, [vals])
-    input.lines().map(|line| {
-        let mut parts = line.split(':');
-        let key = parts.next().unwrap().trim().to_string();
-        let vals = parts.next().unwrap_or("").trim()
-            .split_whitespace()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-        (key, vals)
-    }).collect()
+    input
+        .lines()
+        .map(|line| {
+            let mut parts = line.split(':');
+            let key = parts.next().unwrap().trim().to_string();
+            let vals = parts
+                .next()
+                .unwrap_or("")
+                .trim()
+                .split_whitespace()
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>();
+            (key, vals)
+        })
+        .collect()
 }
 
 pub fn part1(_input: &ParsedInput) -> u32 {
@@ -47,15 +53,15 @@ pub fn part2(_input: &ParsedInput) -> u64 {
     // Use memoization: count paths from (node, seen_dac, seen_fft) to "out"
     // Attempting to explore all paths is veeeeeery slow without memoization
     use std::collections::HashMap;
-    
+
     let mut graph: HashMap<&str, Vec<&str>> = HashMap::new();
     for (key, vals) in _input.iter() {
         graph.insert(key.as_str(), vals.iter().map(|s| s.as_str()).collect());
     }
-    
+
     // Memoization cache: (node, seen_dac, seen_fft) -> path count
     let mut memo: HashMap<(&str, bool, bool), u64> = HashMap::new();
-    
+
     fn count_paths<'a>(
         node: &'a str,
         seen_dac: bool,
@@ -66,26 +72,26 @@ pub fn part2(_input: &ParsedInput) -> u64 {
         // Update flags for current node
         let seen_dac = seen_dac || node == "dac";
         let seen_fft = seen_fft || node == "fft";
-        
+
         if node == "out" {
             return if seen_dac && seen_fft { 1 } else { 0 };
         }
-        
+
         let key = (node, seen_dac, seen_fft);
         if let Some(&cached) = memo.get(&key) {
             return cached;
         }
-        
+
         let mut total = 0u64;
         if let Some(neighbors) = graph.get(node) {
             for &neighbor in neighbors {
                 total += count_paths(neighbor, seen_dac, seen_fft, graph, memo);
             }
         }
-        
+
         memo.insert(key, total);
         total
     }
-    
+
     count_paths("svr", false, false, &graph, &mut memo)
 }

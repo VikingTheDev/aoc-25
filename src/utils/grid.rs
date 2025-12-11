@@ -61,9 +61,9 @@ impl<T: Clone> Grid<T> {
 
     /// Check if a point is within bounds
     pub fn contains(&self, point: &Point) -> bool {
-        point.x >= 0 
-            && point.y >= 0 
-            && (point.x as usize) < self.width 
+        point.x >= 0
+            && point.y >= 0
+            && (point.x as usize) < self.width
             && (point.y as usize) < self.height
     }
 
@@ -87,16 +87,14 @@ impl<T: Clone> Grid<T> {
 
     /// Iterate over all points in the grid
     pub fn points(&self) -> impl Iterator<Item = Point> + '_ {
-        (0..self.height).flat_map(move |y| {
-            (0..self.width).map(move |x| Point::new(x as i32, y as i32))
-        })
+        (0..self.height)
+            .flat_map(move |y| (0..self.width).map(move |x| Point::new(x as i32, y as i32)))
     }
 
     /// Iterate over all cells with their positions
     pub fn cells_with_points(&self) -> impl Iterator<Item = (Point, &T)> + '_ {
-        self.points().filter_map(move |p| {
-            self.get(&p).map(|cell| (p, cell))
-        })
+        self.points()
+            .filter_map(move |p| self.get(&p).map(|cell| (p, cell)))
     }
 
     /// Find all positions where a predicate is true
@@ -124,10 +122,7 @@ impl<T: Clone> Grid<T> {
 impl Grid<char> {
     /// Create a character grid from a string (lines separated by newlines)
     pub fn from_string(input: &str) -> Self {
-        let cells: Vec<Vec<char>> = input
-            .lines()
-            .map(|line| line.chars().collect())
-            .collect();
+        let cells: Vec<Vec<char>> = input.lines().map(|line| line.chars().collect()).collect();
         Self::from_vec(cells)
     }
 

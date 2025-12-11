@@ -2,8 +2,8 @@ use std::env::args;
 use std::fs::read_to_string;
 use std::time::{Duration, Instant};
 
-mod year2025;
 mod utils;
+mod year2025;
 
 struct Solution {
     year: u32,
@@ -14,7 +14,7 @@ struct Solution {
 fn main() {
     // Check for --test flag
     let use_test = args().any(|arg| arg == "--test");
-    
+
     // Parse command line options
     let mut iter = args().skip(1).flat_map(|arg| arg.parse::<u32>().ok());
     let (year, day) = (iter.next(), iter.next());
@@ -37,7 +37,11 @@ fn main() {
     }
 }
 
-fn run_solution((stars, duration): (u32, Duration), solution: &Solution, use_test: bool) -> (u32, Duration) {
+fn run_solution(
+    (stars, duration): (u32, Duration),
+    solution: &Solution,
+    use_test: bool,
+) -> (u32, Duration) {
     let Solution { year, day, wrapper } = solution;
     let path = if use_test {
         format!("tests/year{year}/day{day:02}_input.txt")
@@ -50,7 +54,10 @@ fn run_solution((stars, duration): (u32, Duration), solution: &Solution, use_tes
         let (part1, part2) = wrapper(&data);
         let elapsed = instant.elapsed();
 
-        println!("{year} Day {day:02}{}", if use_test { " (TEST)" } else { "" });
+        println!(
+            "{year} Day {day:02}{}",
+            if use_test { " (TEST)" } else { "" }
+        );
         println!("    Part 1: {part1}");
         println!("    Part 2: {part2}");
 

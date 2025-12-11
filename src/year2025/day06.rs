@@ -23,7 +23,7 @@ pub fn parse(input: &str) -> ParsedInput {
             char_positions.push((ch, i));
         }
     }
-    
+
     // Now determine column boundaries
     // Each column starts at the character position and ends before the next column starts
     let mut columns: Vec<(char, Vec<Vec<char>>)> = Vec::new();
@@ -34,7 +34,7 @@ pub fn parse(input: &str) -> ParsedInput {
         } else {
             last_line.len()
         };
-        
+
         // Now read the column data from the previous lines
         let mut grid_data: Vec<Vec<char>> = Vec::new();
         for line in &lines[0..height] {
@@ -48,9 +48,12 @@ pub fn parse(input: &str) -> ParsedInput {
         }
         columns.push((ch, grid_data));
     }
-    
+
     // Convert columns to ParsedInput
-    columns.into_iter().map(|(ch, grid_data)| (ch, Grid::from_vec(grid_data))).collect()
+    columns
+        .into_iter()
+        .map(|(ch, grid_data)| (ch, Grid::from_vec(grid_data)))
+        .collect()
 }
 
 pub fn part1(_input: &ParsedInput) -> u64 {
@@ -63,13 +66,16 @@ pub fn part1(_input: &ParsedInput) -> u64 {
         for y in 0..grid.height {
             let mut row_value: u64 = 0;
             for x in 0..grid.width {
-                if let Some(c) = grid.get(&Point { x: x as i32, y: y as i32 }) {
+                if let Some(c) = grid.get(&Point {
+                    x: x as i32,
+                    y: y as i32,
+                }) {
                     if c.is_ascii_digit() {
                         row_value = row_value * 10 + (*c as u64 - '0' as u64);
                     }
                 }
             }
-            column_numbers.push(row_value);      
+            column_numbers.push(row_value);
         }
         // Now we have all row values for this column
         // Depending on ch, we either sum or multiply
@@ -98,7 +104,10 @@ pub fn part2(_input: &ParsedInput) -> u64 {
         for x in 0..grid.width {
             let mut col_string = String::new();
             for y in 0..grid.height {
-                if let Some(c) = grid.get(&Point { x: x as i32, y: y as i32 }) {
+                if let Some(c) = grid.get(&Point {
+                    x: x as i32,
+                    y: y as i32,
+                }) {
                     if c.is_ascii_digit() {
                         col_string.push(*c);
                     }

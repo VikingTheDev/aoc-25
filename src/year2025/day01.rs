@@ -47,13 +47,13 @@ pub fn part2(input: &[i32]) -> u32 {
 
     for &steps in input {
         let abs_steps = steps.abs();
-        
+
         // Count complete wraps around the dial (each wrap crosses 0 once)
         zero_count += (abs_steps / 100) as u32;
-        
+
         // Check if we cross 0 in the remaining partial rotation
         let remaining = abs_steps % 100;
-        
+
         if remaining > 0 {
             if steps > 0 {
                 // Moving right: we cross 0 if the range (position, position + remaining] contains a multiple of 100

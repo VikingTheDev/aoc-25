@@ -3,7 +3,8 @@ use std::collections::HashMap;
 type ParsedInput = Vec<Vec<u8>>;
 
 pub fn parse(input: &str) -> ParsedInput {
-    input.trim()
+    input
+        .trim()
         .lines()
         .map(|line| {
             line.trim()
@@ -29,7 +30,7 @@ pub fn part1(_input: &ParsedInput) -> u32 {
 
         // Pick any two positions i < j and form number line[i]*10 + line[j]
         for i in 0..line.len() {
-            for j in (i+1)..line.len() {
+            for j in (i + 1)..line.len() {
                 let num = (line[i] as u32) * 10 + (line[j] as u32);
                 if num > max_num {
                     max_num = num;

@@ -3,7 +3,10 @@ use crate::utils::{Grid, Point};
 type ParsedInput = Grid<char>;
 
 pub fn parse(input: &str) -> ParsedInput {
-    let cells = input.lines().map(|s| s.chars().collect()).collect::<Vec<Vec<char>>>();
+    let cells = input
+        .lines()
+        .map(|s| s.chars().collect())
+        .collect::<Vec<Vec<char>>>();
 
     Grid::from_vec(cells)
 }
@@ -30,19 +33,33 @@ pub fn part1(_input: &ParsedInput) -> u32 {
                     match grid.get(&beam_pos) {
                         Some(&'^') => {
                             // Split the beam
-                            let left_pos = Point { x: beam_pos.x - 1, y: beam_pos.y + 1 };
-                            let right_pos = Point { x: beam_pos.x + 1, y: beam_pos.y + 1 };
-                            if grid.get(&left_pos) != Some(&'|') && left_pos.x >= 0 && (left_pos.x as usize) < grid.width {
+                            let left_pos = Point {
+                                x: beam_pos.x - 1,
+                                y: beam_pos.y + 1,
+                            };
+                            let right_pos = Point {
+                                x: beam_pos.x + 1,
+                                y: beam_pos.y + 1,
+                            };
+                            if grid.get(&left_pos) != Some(&'|')
+                                && left_pos.x >= 0
+                                && (left_pos.x as usize) < grid.width
+                            {
                                 new_beam_positions.push(left_pos);
                             }
-                            if grid.get(&right_pos) != Some(&'|') && (right_pos.x as usize) < grid.width {
+                            if grid.get(&right_pos) != Some(&'|')
+                                && (right_pos.x as usize) < grid.width
+                            {
                                 new_beam_positions.push(right_pos);
                             }
                             split_count += 1;
                         }
                         Some(&'.') => {
                             // Continue the beam downwards
-                            new_beam_positions.push(Point { x: beam_pos.x, y: beam_pos.y + 1 });
+                            new_beam_positions.push(Point {
+                                x: beam_pos.x,
+                                y: beam_pos.y + 1,
+                            });
                         }
                         _ => {
                             // Beam is blocked or out of bounds
@@ -55,18 +72,18 @@ pub fn part1(_input: &ParsedInput) -> u32 {
             }
         }
     }
-    
+
     split_count
 }
 
-pub fn part2(_input: &ParsedInput) -> u64{
+pub fn part2(_input: &ParsedInput) -> u64 {
     // Count all distinct paths from S to the bottom using dynamic programming
     // We track the number of paths that reach each position
     use std::collections::HashMap;
-    
+
     let grid = _input;
     let mut path_counts: HashMap<Point, u64> = HashMap::new();
-    
+
     // Find the starting position
     let mut start_x = None;
     for x in 0..grid.width {
@@ -75,20 +92,18 @@ pub fn part2(_input: &ParsedInput) -> u64{
             break;
         }
     }
-    
+
     let start_x = match start_x {
-        Some(x) => {
-            x
-        },
+        Some(x) => x,
         None => {
             return 0;
         }
     };
-    
+
     // Initialize: the position below S has 1 path
     let start_pos = Point { x: start_x, y: 1 };
     path_counts.insert(start_pos, 1);
-    
+
     // Process layer by layer from top to bottom
     // Go one layer beyond to count exits
     for y in 1..=(grid.height as i32) {
@@ -98,18 +113,23 @@ pub fn part2(_input: &ParsedInput) -> u64{
             .filter(|(p, _)| p.y == y)
             .map(|(p, &count)| (*p, count))
             .collect();
-        
-        if !current_layer.is_empty() {
-        }
-        
+
+        if !current_layer.is_empty() {}
+
         for (pos, count) in current_layer {
             let cell = grid.get(&pos);
             match cell {
                 Some(&'^') => {
                     // Split: paths go left and right, then down
-                    let left_pos = Point { x: pos.x - 1, y: pos.y + 1 };
-                    let right_pos = Point { x: pos.x + 1, y: pos.y + 1 };
-                    
+                    let left_pos = Point {
+                        x: pos.x - 1,
+                        y: pos.y + 1,
+                    };
+                    let right_pos = Point {
+                        x: pos.x + 1,
+                        y: pos.y + 1,
+                    };
+
                     if left_pos.x >= 0 && (left_pos.x as usize) < grid.width {
                         *path_counts.entry(left_pos).or_insert(0) += count;
                     }
@@ -119,7 +139,10 @@ pub fn part2(_input: &ParsedInput) -> u64{
                 }
                 Some(&'.') => {
                     // Continue downwards
-                    let next_pos = Point { x: pos.x, y: pos.y + 1 };
+                    let next_pos = Point {
+                        x: pos.x,
+                        y: pos.y + 1,
+                    };
                     *path_counts.entry(next_pos).or_insert(0) += count;
                 }
                 _ => {
@@ -128,7 +151,7 @@ pub fn part2(_input: &ParsedInput) -> u64{
             }
         }
     }
-    
+
     // Count all paths that reached y == height (just past the bottom row)
     let mut total_paths = 0;
     for (pos, count) in path_counts.iter() {
@@ -136,6 +159,6 @@ pub fn part2(_input: &ParsedInput) -> u64{
             total_paths += count;
         }
     }
-    
+
     total_paths
 }

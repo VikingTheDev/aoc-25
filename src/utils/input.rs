@@ -1,5 +1,5 @@
-use std::fs;
 use super::grid::Grid;
+use std::fs;
 
 /// Read input file as a single string
 pub fn read_input(day: u8, use_test: bool) -> String {
@@ -57,12 +57,7 @@ pub fn read_groups(day: u8, use_test: bool) -> Vec<Vec<String>> {
     let input = read_input(day, use_test);
     input
         .split("\n\n")
-        .map(|group| {
-            group
-                .lines()
-                .map(|s| s.to_string())
-                .collect()
-        })
+        .map(|group| group.lines().map(|s| s.to_string()).collect())
         .collect()
 }
 
